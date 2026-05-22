@@ -6,14 +6,17 @@ from datetime import datetime, date
 from sqlalchemy import extract
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=False)  # real env vars (Railway) always win over .env file
 
 app = Flask(__name__)
 
-database_url = os.environ.get('DATABASE_URL', '')
-if database_url.startswith('postgres://'):
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
-if not database_url:
+database_url = os.environ.get('DATABASE_URL')  # None if truly absent
+if database_url:
+    # Railway (and some older Heroku/Postgres providers) emit postgres:// which
+    # SQLAlchemy 1.4+ rejects; replace only the scheme, leave the rest intact.
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+else:
     database_url = 'sqlite:///daily.db'
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
