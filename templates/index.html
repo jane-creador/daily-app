@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <div class="bg-orb orb-3"></div>
+
+  <!-- ── Header ─────────────────────────────────────────────── -->
+  <header>
+    <div class="header-inner">
+      <span class="logo">Daily</span>
+      <nav>
+        <a href="/?tab=gastos"    class="tab {% if tab == 'gastos' %}active{% endif %}">Gastos</a>
+        <a href="/?tab=notas"     class="tab {% if tab == 'notas' %}active{% endif %}">Notas</a>
+        <a href="/?tab=todo"      class="tab {% if tab == 'todo' %}active{% endif %}">To-do</a>
+        <a href="/?tab=calendario" class="tab {% if tab == 'calendario' %}active{% endif %}">Calendario</a>
+      </nav>
+      <button class="theme-btn" id="themeBtn" aria-label="Toggle theme">
+        <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ══════════════════════════════════════════════════════════
+         TAB: GASTOS
+    ══════════════════════════════════════════════════════════ -->
+    <section class="tab-panel {% if tab == 'gastos' %}active{% endif %}" id="panel-gastos">
+
+      <div class="panel-grid">
+
+        <!-- Add form -->
+        <div class="card">
+          <h2 class="card-title">Nuevo gasto</h2>
+          <form action="/expenses/add" method="POST" class="form-cols">
+            <div class="field">
+              <label>Cantidad</label>
+              <input type="number" name="amount" placeholder="0.00" step="0.01" min="0" required />
+            </div>
+            <div class="field">
+              <label>Categoría</label>
+              <select name="category" required>
+                <option value="" disabled selected>Seleccionar…</option>
+                <option value="Comida">Comida</option>
+                <option value="Transporte">Transporte</option>
+                <option value="Entretenimiento">Entretenimiento</option>
+                <option value="Salud">Salud</option>
+                <option value="Compras">Compras</option>
+                <option value="Hogar">Hogar</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Descripción</label>
+              <input type="text" name="description" placeholder="Opcional" />
+            </div>
+            <div class="field">
+              <label>Fecha</label>
+              <input type="date" name="date" value="{{ today }}" required />
+            </div>
+            <div class="field field-submit">
+              <button type="submit" class="btn btn-primary">Agregar</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Monthly stat -->
+        <div class="card card-stat">
+          <p class="stat-label">Total del mes</p>
+          <p class="stat-value">€{{ "%.2f"|format(monthly_total) }}</p>
+          <p class="stat-sub">{{ today.strftime('%B %Y') }}</p>
+        </div>
+
+      </div>
+
+      <!-- Expenses table -->
+      <div class="card">
+        <h2 class="card-title">Historial</h2>
+        {% if expenses %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Categoría</th>
+                <th>Descripción</th>
+                <th class="align-right">Cantidad</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in expenses %}
+              <tr>
+                <td class="cell-muted">{{ e.date.strftime('%d %b %Y') }}</td>
+                <td><span class="badge">{{ e.category }}</span></td>
+                <td class="cell-muted">{{ e.description or '—' }}</td>
+                <td class="align-right amount">€{{ "%.2f"|format(e.amount) }}</td>
+                <td class="cell-actions">
+                  <button class="btn btn-ghost btn-sm"
+                    data-modal="editExpense"
+                    data-id="{{ e.id }}"
+                    data-amount="{{ e.amount }}"
+                    data-category="{{ e.category }}"
+                    data-description="{{ e.description | e }}"
+                    data-date="{{ e.date }}"
+                    onclick="openModal('editExpense', this)">Editar</button>
+                  <form action="/expenses/{{ e.id }}/delete" method="POST" style="display:inline" onsubmit="return confirm('¿Eliminar gasto?')">
+                    <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="empty-state">No hay gastos registrados todavía.</p>
+        {% endif %}
+      </div>
+
+    </section>
+
+
+    <!-- ══════════════════════════════════════════════════════════
+         TAB: NOTAS
+    ══════════════════════════════════════════════════════════ -->
+    <section class="tab-panel {% if tab == 'notas' %}active{% endif %}" id="panel-notas">
+
+      <!-- Add form -->
+      <div class="card">
+        <h2 class="card-title">Nueva nota</h2>
+        <form action="/notes/add" method="POST" class="form-note">
+          <div class="form-row">
+            <div class="field" style="flex:2">
+              <label>Título</label>
+              <input type="text" name="title" placeholder="Título de la nota" required />
+            </div>
+            <div class="field">
+              <label>Fecha</label>
+              <input type="date" name="date" value="{{ today }}" required />
+            </div>
+          </div>
+          <div class="field">
+            <label>Contenido</label>
+            <textarea name="content" rows="4" placeholder="Escribe tu nota aquí…" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Guardar nota</button>
+        </form>
+      </div>
+
+      <!-- Notes grid -->
+      {% if notes %}
+      <div class="notes-grid">
+        {% for n in notes %}
+        <div class="note-card">
+          <div class="note-header">
+            <span class="note-dot"></span>
+            <time class="note-date">{{ n.date.strftime('%d %b %Y') }}</time>
+          </div>
+          <h3 class="note-title">{{ n.title }}</h3>
+          <p class="note-body">{{ n.content }}</p>
+          <div class="note-actions">
+            <button class="btn btn-ghost btn-sm"
+              data-modal="editNote"
+              data-id="{{ n.id }}"
+              data-title="{{ n.title | e }}"
+              data-content="{{ n.content | e }}"
+              data-date="{{ n.date }}"
+              onclick="openModal('editNote', this)">Editar</button>
+            <form action="/notes/{{ n.id }}/delete" method="POST" style="display:inline" onsubmit="return confirm('¿Eliminar nota?')">
+              <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card">
+        <p class="empty-state">No hay notas todavía.</p>
+      </div>
+      {% endif %}
+
+    </section>
+
+
+    <!-- ══════════════════════════════════════════════════════════
+         TAB: TO-DO
+    ══════════════════════════════════════════════════════════ -->
+    <section class="tab-panel {% if tab == 'todo' %}active{% endif %}" id="panel-todo">
+
+      <!-- Add form -->
+      <div class="card">
+        <h2 class="card-title">Nueva tarea</h2>
+        <form action="/todos/add" method="POST" class="form-todo">
+          <div class="field" style="flex:1">
+            <label>Tarea</label>
+            <input type="text" name="task" placeholder="¿Qué hay que hacer?" required />
+          </div>
+          <div class="field" style="min-width:160px">
+            <label>Fecha</label>
+            <input type="date" name="date" value="{{ today }}" required />
+          </div>
+          <div class="field field-submit">
+            <button type="submit" class="btn btn-primary">Agregar</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Todo list -->
+      {% if todos %}
+      <div class="card">
+        <h2 class="card-title">Tareas
+          <span class="badge-count">
+            {{ todos | selectattr('done', 'equalto', False) | list | length }} pendientes
+          </span>
+        </h2>
+        <ul class="todo-list">
+          {% for t in todos %}
+          <li class="todo-item {% if t.done %}is-done{% endif %}">
+            <form action="/todos/{{ t.id }}/toggle" method="POST" style="display:contents">
+              <button type="submit" class="todo-check" aria-label="Toggle">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  {% if t.done %}
+                  <path d="M2 7l3.5 3.5L12 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  {% endif %}
+                </svg>
+              </button>
+            </form>
+            <div class="todo-body">
+              <span class="todo-task">{{ t.task }}</span>
+              <time class="todo-date">{{ t.date.strftime('%d %b %Y') }}</time>
+            </div>
+            <div class="todo-actions">
+              <button class="btn btn-ghost btn-sm"
+                data-modal="editTodo"
+                data-id="{{ t.id }}"
+                data-task="{{ t.task | e }}"
+                data-date="{{ t.date }}"
+                onclick="openModal('editTodo', this)">Editar</button>
+              <form action="/todos/{{ t.id }}/delete" method="POST" style="display:inline" onsubmit="return confirm('¿Eliminar tarea?')">
+                <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+              </form>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% else %}
+      <div class="card">
+        <p class="empty-state">No hay tareas pendientes. ¡Todo listo!</p>
+      </div>
+      {% endif %}
+
+    </section>
+
+
+    <!-- ══════════════════════════════════════════════════════════
+         TAB: CALENDARIO
+    ══════════════════════════════════════════════════════════ -->
+    <section class="tab-panel {% if tab == 'calendario' %}active{% endif %}" id="panel-calendario">
+
+      <div class="card calendar-card">
+        <!-- Calendar nav -->
+        <div class="cal-nav">
+          <button class="btn btn-ghost btn-icon" id="calPrev" aria-label="Mes anterior">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <h2 class="cal-title" id="calTitle"></h2>
+          <button class="btn btn-ghost btn-icon" id="calNext" aria-label="Mes siguiente">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+
+        <!-- Legend -->
+        <div class="cal-legend">
+          <span class="legend-item"><span class="dot dot-expense"></span> Gastos</span>
+          <span class="legend-item"><span class="dot dot-note"></span> Notas</span>
+          <span class="legend-item"><span class="dot dot-todo"></span> To-do</span>
+        </div>
+
+        <!-- Grid -->
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+
+      <!-- Day detail panel -->
+      <div class="day-panel" id="dayPanel">
+        <div class="day-panel-header">
+          <h3 id="dayPanelTitle"></h3>
+          <button class="btn btn-ghost btn-icon" onclick="closeDayPanel()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div id="dayPanelContent"></div>
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <!-- ══════════════════════════════════════════════════════════
+       MODALS
+  ══════════════════════════════════════════════════════════ -->
+
+  <!-- Edit Expense -->
+  <div class="modal-overlay" id="modal-editExpense" onclick="closeModalOnOverlay(event, 'editExpense')">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Editar gasto</h3>
+        <button class="btn btn-ghost btn-icon" onclick="closeModal('editExpense')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form id="form-editExpense" method="POST" class="modal-form">
+        <div class="form-cols">
+          <div class="field">
+            <label>Cantidad</label>
+            <input type="number" name="amount" id="ee-amount" step="0.01" min="0" required />
+          </div>
+          <div class="field">
+            <label>Categoría</label>
+            <select name="category" id="ee-category" required>
+              <option value="Comida">Comida</option>
+              <option value="Transporte">Transporte</option>
+              <option value="Entretenimiento">Entretenimiento</option>
+              <option value="Salud">Salud</option>
+              <option value="Compras">Compras</option>
+              <option value="Hogar">Hogar</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Descripción</label>
+            <input type="text" name="description" id="ee-description" />
+          </div>
+          <div class="field">
+            <label>Fecha</label>
+            <input type="date" name="date" id="ee-date" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('editExpense')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Note -->
+  <div class="modal-overlay" id="modal-editNote" onclick="closeModalOnOverlay(event, 'editNote')">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Editar nota</h3>
+        <button class="btn btn-ghost btn-icon" onclick="closeModal('editNote')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form id="form-editNote" method="POST" class="modal-form">
+        <div class="field">
+          <label>Título</label>
+          <input type="text" name="title" id="en-title" required />
+        </div>
+        <div class="field">
+          <label>Fecha</label>
+          <input type="date" name="date" id="en-date" required />
+        </div>
+        <div class="field">
+          <label>Contenido</label>
+          <textarea name="content" id="en-content" rows="5" required></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('editNote')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Todo -->
+  <div class="modal-overlay" id="modal-editTodo" onclick="closeModalOnOverlay(event, 'editTodo')">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Editar tarea</h3>
+        <button class="btn btn-ghost btn-icon" onclick="closeModal('editTodo')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form id="form-editTodo" method="POST" class="modal-form">
+        <div class="field">
+          <label>Tarea</label>
+          <input type="text" name="task" id="et-task" required />
+        </div>
+        <div class="field">
+          <label>Fecha</label>
+          <input type="date" name="date" id="et-date" required />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('editTodo')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════
+       SCRIPTS
+  ══════════════════════════════════════════════════════════ -->
+  <script>
+  // ── Theme ──────────────────────────────────────────────────────────────────
+  const html = document.documentElement;
+  const themeBtn = document.getElementById('themeBtn');
+  const iconSun  = document.getElementById('iconSun');
+  const iconMoon = document.getElementById('iconMoon');
+
+  function applyTheme(theme) {
+    html.setAttribute('data-theme', theme);
+    if (theme === 'dark') {
+      iconSun.style.display  = 'block';
+      iconMoon.style.display = 'none';
+    } else {
+      iconSun.style.display  = 'none';
+      iconMoon.style.display = 'block';
+    }
+    localStorage.setItem('daily-theme', theme);
+  }
+
+  themeBtn.addEventListener('click', () => {
+    applyTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+
+  const saved = localStorage.getItem('daily-theme');
+  if (saved) applyTheme(saved);
+
+
+  // ── Modals ─────────────────────────────────────────────────────────────────
+  function openModal(name, btn) {
+    const overlay = document.getElementById('modal-' + name);
+    const id = btn.dataset.id;
+
+    if (name === 'editExpense') {
+      document.getElementById('form-editExpense').action = '/expenses/' + id + '/edit';
+      document.getElementById('ee-amount').value      = btn.dataset.amount;
+      document.getElementById('ee-category').value    = btn.dataset.category;
+      document.getElementById('ee-description').value = btn.dataset.description;
+      document.getElementById('ee-date').value        = btn.dataset.date;
+    }
+    if (name === 'editNote') {
+      document.getElementById('form-editNote').action  = '/notes/' + id + '/edit';
+      document.getElementById('en-title').value   = btn.dataset.title;
+      document.getElementById('en-content').value = btn.dataset.content;
+      document.getElementById('en-date').value    = btn.dataset.date;
+    }
+    if (name === 'editTodo') {
+      document.getElementById('form-editTodo').action = '/todos/' + id + '/edit';
+      document.getElementById('et-task').value = btn.dataset.task;
+      document.getElementById('et-date').value = btn.dataset.date;
+    }
+
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal(name) {
+    document.getElementById('modal-' + name).classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function closeModalOnOverlay(e, name) {
+    if (e.target === e.currentTarget) closeModal(name);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-overlay.open').forEach(el => {
+        el.classList.remove('open');
+        document.body.style.overflow = '';
+      });
+    }
+  });
+
+
+  // ── Calendar ───────────────────────────────────────────────────────────────
+  const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const DAYS_ES   = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+
+  let calYear  = new Date().getFullYear();
+  let calMonth = new Date().getMonth() + 1;
+  let calData  = {};
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function fetchAndRender(year, month) {
+    fetch('/api/calendar/' + year + '/' + month)
+      .then(r => r.json())
+      .then(data => { calData = data; renderGrid(year, month); });
+  }
+
+  function renderGrid(year, month) {
+    document.getElementById('calTitle').textContent = MONTHS_ES[month - 1] + ' ' + year;
+
+    const grid = document.getElementById('calGrid');
+    grid.innerHTML = '';
+
+    // Day headers (Mon–Sun)
+    DAYS_ES.forEach(d => {
+      const h = document.createElement('div');
+      h.className = 'cal-head';
+      h.textContent = d;
+      grid.appendChild(h);
+    });
+
+    const firstDay = new Date(year, month - 1, 1);
+    // Monday-based offset: getDay() returns 0=Sun; shift so Mon=0
+    let startOffset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const todayStr = new Date().getFullYear() + '-' +
+                     pad(new Date().getMonth() + 1) + '-' +
+                     pad(new Date().getDate());
+
+    for (let i = 0; i < startOffset; i++) {
+      const blank = document.createElement('div');
+      blank.className = 'cal-cell blank';
+      grid.appendChild(blank);
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = year + '-' + pad(month) + '-' + pad(d);
+      const dayData = calData[dateStr];
+
+      const cell = document.createElement('div');
+      cell.className = 'cal-cell';
+      if (dateStr === todayStr) cell.classList.add('today');
+      if (dayData) cell.classList.add('has-data');
+
+      cell.innerHTML = '<span class="cal-num">' + d + '</span>';
+
+      if (dayData) {
+        const dots = document.createElement('div');
+        dots.className = 'cal-dots';
+        if (dayData.expenses && dayData.expenses.length)
+          dots.innerHTML += '<span class="dot dot-expense"></span>';
+        if (dayData.notes && dayData.notes.length)
+          dots.innerHTML += '<span class="dot dot-note"></span>';
+        if (dayData.todos && dayData.todos.length)
+          dots.innerHTML += '<span class="dot dot-todo"></span>';
+        cell.appendChild(dots);
+        cell.addEventListener('click', () => showDayPanel(dateStr, dayData));
+      }
+
+      grid.appendChild(cell);
+    }
+  }
+
+  function showDayPanel(dateStr, data) {
+    const [y, m, d] = dateStr.split('-');
+    document.getElementById('dayPanelTitle').textContent =
+      parseInt(d) + ' de ' + MONTHS_ES[parseInt(m) - 1] + ' ' + y;
+
+    let html = '';
+
+    if (data.expenses && data.expenses.length) {
+      html += '<div class="panel-section">';
+      html += '<h4 class="panel-section-title panel-expense">Gastos</h4><ul class="panel-list">';
+      data.expenses.forEach(e => {
+        html += '<li><strong>€' + e.amount.toFixed(2) + '</strong> · ' +
+          escHtml(e.category) +
+          (e.description ? ' — ' + escHtml(e.description) : '') + '</li>';
+      });
+      html += '</ul></div>';
+    }
+
+    if (data.notes && data.notes.length) {
+      html += '<div class="panel-section">';
+      html += '<h4 class="panel-section-title panel-note">Notas</h4><ul class="panel-list">';
+      data.notes.forEach(n => {
+        html += '<li><strong>' + escHtml(n.title) + '</strong><p>' +
+          escHtml(n.content.length > 120 ? n.content.substring(0, 120) + '…' : n.content) +
+          '</p></li>';
+      });
+      html += '</ul></div>';
+    }
+
+    if (data.todos && data.todos.length) {
+      html += '<div class="panel-section">';
+      html += '<h4 class="panel-section-title panel-todo">To-do</h4><ul class="panel-list">';
+      data.todos.forEach(t => {
+        html += '<li class="' + (t.done ? 'done' : '') + '">' + escHtml(t.task) + '</li>';
+      });
+      html += '</ul></div>';
+    }
+
+    if (!html) html = '<p class="empty-state">Sin entradas para este día.</p>';
+
+    document.getElementById('dayPanelContent').innerHTML = html;
+    document.getElementById('dayPanel').classList.add('open');
+  }
+
+  function closeDayPanel() {
+    document.getElementById('dayPanel').classList.remove('open');
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  document.getElementById('calPrev').addEventListener('click', () => {
+    calMonth--;
+    if (calMonth < 1) { calMonth = 12; calYear--; }
+    closeDayPanel();
+    fetchAndRender(calYear, calMonth);
+  });
+
+  document.getElementById('calNext').addEventListener('click', () => {
+    calMonth++;
+    if (calMonth > 12) { calMonth = 1; calYear++; }
+    closeDayPanel();
+    fetchAndRender(calYear, calMonth);
+  });
+
+  // Init calendar when its tab is visible
+  const calTab = document.querySelector('a[href="/?tab=calendario"]');
+  if (document.getElementById('panel-calendario').classList.contains('active')) {
+    fetchAndRender(calYear, calMonth);
+  }
+  calTab && calTab.addEventListener('click', () => {
+    setTimeout(() => fetchAndRender(calYear, calMonth), 50);
+  });
+
+  // Also init on load if we're on the calendar tab
+  if (window.location.search.includes('tab=calendario')) {
+    fetchAndRender(calYear, calMonth);
+  }
+
+  </script>
+</body>
+</html>
